@@ -1,0 +1,13 @@
+[Unit]
+Description=Forensics Imager USB gadget service
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/forensic-imager/bin/gadget-manager start
+ExecStop=/opt/forensic-imager/bin/gadget-manager stop
+
+[Install]
+WantedBy=multi-user.target
+

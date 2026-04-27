@@ -1,0 +1,14 @@
+[Unit]
+Description=Forensics Imager storage-only controller agent
+After=network-online.target forensic-gadget.service
+Wants=forensic-gadget.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/forensic-imager
+ExecStart=/usr/bin/python3 /opt/forensic-imager/app/controller.py
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target

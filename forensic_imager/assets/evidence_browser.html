@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Forensics Evidence Browser</title>
+  <style>
+    :root {
+      --bg: #161311;
+      --panel: #211c19;
+      --panel-2: #1b1714;
+      --ink: #f2ebe4;
+      --muted: #b3a59a;
+      --accent: #8fb98f;
+      --accent-2: #d9b36c;
+      --line: #3a312b;
+      --ok: #47c27a;
+      --fail: #f07178;
+      --link: #b7d6a5;
+      --link-hover: #d6e7bf;
+      --title: #fbf6f0;
+      --header: #ead7bf;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(143,185,143,0.08), transparent 28%),
+        radial-gradient(circle at top right, rgba(217,179,108,0.08), transparent 24%),
+        linear-gradient(180deg, #120f0d 0%, var(--bg) 100%);
+      color: var(--ink);
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      margin-bottom: 20px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 32px;
+      letter-spacing: -0.04em;
+      color: var(--title);
+    }
+    .sub {
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .status {
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(18,27,37,0.9);
+      white-space: nowrap;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 20px;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+    }
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 17px;
+      color: var(--header);
+    }
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 6px;
+      color: var(--muted);
+    }
+    input, button, select {
+      font: inherit;
+    }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #171311;
+      color: var(--ink);
+      margin-bottom: 10px;
+    }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      background: linear-gradient(180deg, #9dc28f 0%, #7ea56f 100%);
+      color: #081018;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #172231;
+      color: var(--ink);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .button-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .case-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .case-item {
+      width: 100%;
+      text-align: left;
+      background: #1a1613;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+    .case-item.active {
+      background: rgba(143,185,143,0.18);
+      border-color: var(--accent);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      font-size: 14px;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    a {
+      color: var(--link);
+      text-decoration: none;
+    }
+    a:hover {
+      color: var(--link-hover);
+      text-decoration: underline;
+    }
+    .ok { color: var(--ok); font-weight: 600; }
+    .fail { color: var(--fail); font-weight: 600; }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 12px;
+      word-break: break-all;
+    }
+    .details {
+      margin-top: 16px;
+      padding: 14px;
+      background: #1a1613;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      min-height: 160px;
+      white-space: pre-wrap;
+    }
+    .manifest-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .manifest-card {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .manifest-card h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      color: var(--accent-2);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .manifest-row {
+      display: grid;
+      grid-template-columns: 130px 1fr;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid #1f2b39;
+      font-size: 14px;
+    }
+    .manifest-row:last-child {
+      border-bottom: 0;
+    }
+    .manifest-key {
+      color: var(--muted);
+    }
+    .manifest-value {
+      font-weight: 500;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .status-ok {
+      background: rgba(71,194,122,0.16);
+      color: var(--ok);
+    }
+    .status-fail {
+      background: rgba(240,113,120,0.16);
+      color: var(--fail);
+    }
+    .hash-block {
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      word-break: break-all;
+      background: #15110f;
+      border: 1px solid #342b25;
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .audit-list {
+      display: grid;
+      gap: 12px;
+    }
+    .audit-phase {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .audit-phase-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      width: 100%;
+      padding: 14px 16px;
+      background: linear-gradient(180deg, rgba(143,185,143,0.14) 0%, rgba(143,185,143,0.06) 100%);
+      border-bottom: 1px solid #4a3f35;
+      box-shadow: inset 4px 0 0 var(--accent);
+      cursor: pointer;
+      list-style: none;
+    }
+    .audit-phase-head::-webkit-details-marker { display: none; }
+    .audit-phase:not([open]) .audit-phase-head {
+      border-bottom: 0;
+    }
+    .audit-phase-head::after {
+      content: '▾';
+      margin-left: auto;
+      color: var(--accent-2);
+      font-size: 14px;
+      line-height: 1;
+      transform: rotate(0deg);
+      transition: transform 0.18s ease;
+    }
+    .audit-phase:not([open]) .audit-phase-head::after {
+      transform: rotate(-90deg);
+    }
+    .audit-phase-title {
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--header);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .audit-phase-meta {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      margin-right: 8px;
+    }
+    .audit-phase-body {
+      padding: 12px 14px 14px;
+      background: rgba(18, 15, 13, 0.42);
+    }
+    .audit-item {
+      background: #1a1613;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .audit-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .audit-event {
+      font-weight: 700;
+      text-transform: capitalize;
+      color: var(--title);
+    }
+    .audit-time {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .audit-grid {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 6px 10px;
+      font-size: 13px;
+    }
+    .audit-fields {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .audit-tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .audit-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #241e1a;
+      border: 1px solid #3a312b;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      line-height: 1.3;
+    }
+    .audit-tag-label {
+      color: var(--header);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+    }
+    .audit-chip {
+      background: #221c18;
+      border: 1px solid #3a312b;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      display: block;
+    }
+    .audit-value {
+      display: block;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: normal;
+    }
+    .audit-chip strong {
+      display: block;
+      color: var(--header);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .empty {
+      color: var(--muted);
+      padding: 12px 0;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+      .hero { flex-direction: column; align-items: flex-start; }
+      .manifest-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div></div>
+      <div class="status" id="statusBadge">Locked</div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>Evidence Access</h2>
+        <label for="password">LUKS Password</label>
+        <input id="password" type="password" placeholder="Enter evidence password">
+        <div class="button-row">
+          <button id="unlockBtn">Unlock Evidence</button>
+          <button id="lockBtn" class="secondary">Lock Evidence</button>
+          <button id="refreshBtn" class="secondary">Refresh Cases</button>
+        </div>
+        <div id="message" class="empty">Idle.</div>
+
+        <h2 style="margin-top:20px">Cases</h2>
+        <div id="caseList" class="case-list"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Verification Results</h2>
+        <div id="resultsWrap">
+          <div class="empty">Unlock the evidence store and select a case.</div>
+        </div>
+        <div id="details" style="margin-top:16px;"><div class="empty">No session selected.</div></div>
+        <div id="caseExtras" style="margin-top:16px;">
+          <div class="empty">Case files and session audit will appear here.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      cases: [],
+      selectedCase: null,
+      sessions: [],
+      files: [],
+      logs: [],
+      currentDir: '',
+    };
+
+    const statusBadge = document.getElementById('statusBadge');
+    const message = document.getElementById('message');
+    const caseList = document.getElementById('caseList');
+    const resultsWrap = document.getElementById('resultsWrap');
+    const details = document.getElementById('details');
+    const caseExtras = document.getElementById('caseExtras');
+    const password = document.getElementById('password');
+    let activeCaseId = null;
+
+    function setMessage(text) {
+      message.textContent = text;
+    }
+
+    function setStatus(unlocked, text) {
+      statusBadge.textContent = text;
+      statusBadge.style.background = unlocked ? 'rgba(71,194,122,0.16)' : 'rgba(18,27,37,0.9)';
+      statusBadge.style.color = unlocked ? '#47c27a' : '#ecf2f8';
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Request failed');
+      }
+      return data;
+    }
+
+    function renderCases() {
+      caseList.innerHTML = '';
+      if (!state.cases.length) {
+        caseList.innerHTML = '<div class="empty">No cases found.</div>';
+        return;
+      }
+      for (const item of state.cases) {
+        const btn = document.createElement('button');
+        btn.className = 'case-item' + (state.selectedCase === item.case_id ? ' active' : '');
+        btn.textContent = `${item.case_id} (${item.session_count} sessions)`;
+        btn.onclick = () => loadCase(item.case_id);
+        caseList.appendChild(btn);
+      }
+    }
+
+    function renderResults() {
+      if (!state.sessions.length) {
+        resultsWrap.innerHTML = '<div class="empty">No verified sessions loaded.</div>';
+        details.textContent = 'No session selected.';
+        caseExtras.innerHTML = '<div class="empty">Case files and session audit will appear here.</div>';
+        return;
+      }
+      const rows = state.sessions.map((session, index) => `
+        <tr data-index="${index}">
+          <td>${session.session_id}</td>
+          <td class="${session.hash_ok ? 'ok' : 'fail'}">${session.hash_ok ? 'OK' : 'FAIL'}</td>
+          <td class="${session.signature_ok === true ? 'ok' : (session.signature_ok === false ? 'fail' : '')}">
+            ${session.signature_ok === true ? 'OK' : (session.signature_ok === false ? 'FAIL' : 'Skipped')}
+          </td>
+          <td>${session.size_bytes}</td>
+        </tr>
+      `).join('');
+
+      resultsWrap.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Session</th>
+              <th>Hash</th>
+              <th>Signature</th>
+              <th>Size (bytes)</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+
+      resultsWrap.querySelectorAll('tbody tr').forEach((row) => {
+        row.style.cursor = 'pointer';
+        row.onclick = () => showSession(Number(row.dataset.index));
+      });
+
+      showSession(0);
+    }
+
+    function parentDir(path) {
+      if (!path) return '';
+      const parts = path.split('/').filter(Boolean);
+      parts.pop();
+      return parts.join('/');
+    }
+
+    function nameFromPath(path) {
+      const parts = path.split('/').filter(Boolean);
+      return parts.length ? parts[parts.length - 1] : '/';
+    }
+
+    function listDirectoryEntries(dirPath) {
+      const seen = new Map();
+      for (const file of state.files) {
+        const rel = file.relative_path;
+        const parent = parentDir(rel);
+        if (parent !== dirPath) {
+          continue;
+        }
+        seen.set(rel, file);
+      }
+      return Array.from(seen.values()).sort((a, b) => {
+        if (a.is_dir !== b.is_dir) {
+          return a.is_dir ? -1 : 1;
+        }
+        return a.relative_path.localeCompare(b.relative_path);
+      });
+    }
+
+    function renderExplorer(caseId) {
+      if (!state.files.length) {
+        return '<div class="empty">No files found in this case.</div>';
+      }
+      const dirPath = state.currentDir || '';
+      const rows = [];
+      if (dirPath) {
+        rows.push(`
+          <tr>
+            <td><a href="#" data-dir="${escapeHtml(parentDir(dirPath))}">..</a></td>
+            <td>Parent Directory</td>
+            <td></td>
+          </tr>
+        `);
+      }
+      for (const file of listDirectoryEntries(dirPath)) {
+        const name = escapeHtml(nameFromPath(file.relative_path));
+        if (file.is_dir) {
+          rows.push(`
+            <tr>
+              <td><a href="#" data-dir="${escapeHtml(file.relative_path)}">${name}</a></td>
+              <td>Directory</td>
+              <td></td>
+            </tr>
+          `);
+          continue;
+        }
+        const href = `/api/evidence-browser/download?case=${encodeURIComponent(caseId)}&path=${encodeURIComponent(file.relative_path)}`;
+        rows.push(`
+          <tr>
+            <td class="mono">${name}</td>
+            <td>${file.size_bytes ?? ''}</td>
+            <td><a href="${href}" download>Download</a></td>
+          </tr>
+        `);
+      }
+      return `
+        <div class="mono" style="margin-bottom:10px;">Current directory: /${escapeHtml(dirPath)}</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Size (bytes)</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      `;
+    }
+
+    function renderLogs() {
+      if (!state.logs.length) {
+        return '<div class="empty">No session audit trail found.</div>';
+      }
+      return state.logs.map((log) => `
+        <div style="margin-top:12px;">
+          <div style="font-weight:600; margin-bottom:8px;">${log.kind === 'session_audit' ? 'Session Audit Trail' : 'Legacy Session Log'}: ${escapeHtml(log.relative_path)}</div>
+          ${log.kind === 'session_audit' ? renderAuditTrail(log.content) : `<div class="details" style="margin-top:0; min-height:0;">${escapeHtml(log.content)}</div>`}
+        </div>
+      `).join('');
+    }
+
+    const AUDIT_EVENT_META = {
+      launcher_started: { title: 'Launcher Opened', fields: ['tools_drive', 'launcher_path'] },
+      administrator_elevation_requested: { title: 'Administrator Elevation Requested', fields: [] },
+      administrator_session_active: { title: 'Administrator Session Active', fields: [] },
+      tools_volume_exposed_by_pi: { title: 'Tools Volume Exposed By Pi', fields: ['tools_device'] },
+      tools_volume_in_use: { title: 'Tools Volume Mounted To Host', fields: ['tools_drive', 'tool_path'] },
+      tools_volume_mounted_to_host: { title: 'Tools Volume Mounted To Host', fields: ['tools_drive', 'tool_path'] },
+      password_verified: { title: 'Password Verified', fields: ['case_id', 'session_id'] },
+      metadata_entered: { title: 'Case Details Entered', fields: ['operator_id', 'target_host'] },
+      case_details_received_by_pi: { title: 'Case Details Received By Pi', fields: ['requested_case_id', 'operator_id', 'target_host'] },
+      dump_volume_dismounted_from_host: { title: 'Dump Volume Dismounted From Host', fields: [] },
+      dump_volume_hidden_from_host: { title: 'Dump Volume Dismounted From Host', fields: [] },
+      dump_volume_mounted_on_pi: { title: 'Dump Volume Mounted On Pi', fields: [] },
+      dump_workspace_prepared: { title: 'Dump Workspace Prepared', fields: ['path'] },
+      dump_volume_unmounted_from_pi: { title: 'Dump Volume Unmounted From Pi', fields: [] },
+      dump_volume_mounted_to_host: { title: 'Dump Volume Mounted To Host', fields: [] },
+      dump_volume_exposed_to_host: { title: 'Dump Volume Mounted To Host', fields: [] },
+      session_prepared: { title: 'Acquisition Session Ready', fields: ['case_id', 'session_id', 'operator_id', 'target_host'] },
+      dump_collection_started: { title: 'Dump Collection Started', fields: ['tool', 'output'] },
+      dump_collection_completed: { title: 'Dump Collection Completed', fields: ['output'] },
+      finalization_begun: { title: 'Finalization Began', fields: ['case_id', 'session_id'] },
+      finalize_started: { title: 'Finalization Began', fields: ['case_id', 'session_id'] },
+      evidence_copy_started: { title: 'Evidence Copy Started', fields: ['source_path', 'target_path'] },
+      evidence_copy_completed: { title: 'Evidence Copy Completed', fields: ['target_path', 'size_bytes'] },
+      evidence_hash_completed: { title: 'Evidence Hashing Completed', fields: ['algorithm', 'sha512'] },
+      manifest_written: { title: 'Manifest Written', fields: ['path'] },
+      manifest_signed: { title: 'Manifest Signed', fields: ['signature_path'] },
+      manifest_sign_completed: { title: 'Manifest Signed', fields: ['signature_path'] },
+      dump_volume_cleanup_completed: { title: 'Dump Volume Cleanup Completed', fields: [] },
+    };
+
+    const AUDIT_HIDDEN_EVENTS = new Set([
+      'waiting_for_dump_volume_started',
+      'waiting_for_dump_volume_completed',
+      'acquisition_started',
+      'finalize_requested',
+      'dump_volume_hide_from_host_started',
+      'dump_volume_mount_on_pi_started',
+      'dump_file_detected',
+      'evidence_hash_started',
+      'dump_volume_cleanup_started',
+      'dump_volume_unmount_from_pi_started',
+      'manifest_sign_started',
+      'dump_volume_prepare_started',
+      'dump_volume_expose_to_host_started',
+      'session_prepared',
+      'finalization_begun',
+      'finalize_started',
+    ]);
+
+    const AUDIT_PHASES = [
+      {
+        key: 'initialization',
+        title: 'Initialization',
+        events: new Set([
+          'password_verified',
+          'case_details_received_by_pi',
+        ]),
+      },
+      {
+        key: 'acquisition',
+        title: 'Acquisition',
+        events: new Set([
+          'dump_volume_mounted_on_pi',
+          'dump_workspace_prepared',
+          'dump_volume_unmounted_from_pi',
+          'dump_volume_mounted_to_host',
+          'dump_volume_exposed_to_host',
+          'dump_collection_started',
+          'dump_collection_completed',
+        ]),
+      },
+      {
+        key: 'finalization',
+        title: 'Finalization',
+        events: new Set([
+          'dump_volume_dismounted_from_host',
+          'dump_volume_hidden_from_host',
+          'dump_volume_mounted_on_pi',
+          'evidence_copy_completed',
+          'evidence_hash_completed',
+          'manifest_written',
+          'manifest_signed',
+          'manifest_sign_completed',
+          'dump_volume_cleanup_completed',
+          'dump_volume_unmounted_from_pi',
+        ]),
+      },
+    ];
+
+    const AUDIT_FIELD_LABELS = {
+      tools_drive: 'Tools Drive',
+      tools_device: 'Tools Device',
+      launcher_path: 'Launcher',
+      tool_path: 'Tool',
+      operator_id: 'Operator',
+      target_host: 'Target Host',
+      case_id: 'Case ID',
+      requested_case_id: 'Requested Case ID',
+      session_id: 'Session ID',
+      path: 'Path',
+      dump_drive: 'Dump Drive',
+      tool: 'Tool',
+      stage_rel_path: 'Expected Output',
+      output: 'Output File',
+      acquisition_end_utc: 'Acquisition End',
+      size_bytes: 'Size',
+      source_path: 'Source',
+      target_path: 'Destination',
+      algorithm: 'Algorithm',
+      sha512: 'SHA-512',
+      signature_path: 'Signature',
+    };
+
+    function formatEventName(name) {
+      const key = String(name || '');
+      if (AUDIT_EVENT_META[key]?.title) {
+        return AUDIT_EVENT_META[key].title;
+      }
+      return key.replaceAll('_', ' ').replace(/\b\w/g, (m) => m.toUpperCase());
+    }
+
+    function formatAuditFieldName(name) {
+      return AUDIT_FIELD_LABELS[name] || formatEventName(name);
+    }
+
+    function formatAuditValue(value) {
+      if (value === null || value === undefined || value === '') {
+        return '<span class="empty">-</span>';
+      }
+      if (typeof value === 'number' && String(value).match(/_bytes$|^size_bytes$/)) {
+        return `<span class="audit-value">${escapeHtml(String(value))}</span>`;
+      }
+      if (typeof value === 'object') {
+        return `<span class="audit-value mono">${escapeHtml(JSON.stringify(value))}</span>`;
+      }
+      const text = escapeHtml(String(value));
+      if (text.includes('/') || text.length > 48) {
+        return `<span class="audit-value mono">${text}</span>`;
+      }
+      return `<span class="audit-value">${text}</span>`;
+    }
+
+    function formatUtcTimestamp(value) {
+      const text = String(value || '').trim();
+      if (!text) {
+        return '';
+      }
+      const match = text.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)/);
+      if (match) {
+        return `${match[1]} ${match[2]} UTC`;
+      }
+      return text;
+    }
+
+    function summarizeAuditDetails(entry) {
+      const meta = AUDIT_EVENT_META[entry.event] || {};
+      const preferredFields = meta.fields || [];
+      const sourceEntries = Object.entries(entry)
+        .filter(([key]) => !['event', 'ts_utc', 'prev_event_hash', 'event_hash'].includes(key));
+      const chosenEntries = preferredFields.length
+        ? preferredFields
+            .filter((key) => Object.prototype.hasOwnProperty.call(entry, key))
+            .map((key) => [key, entry[key]])
+        : sourceEntries;
+      if (!chosenEntries.length) {
+        return '<span class="empty">No extra details.</span>';
+      }
+      const taggableFields = new Set(['requested_case_id', 'case_id', 'session_id', 'operator_id', 'target_host', 'tool', 'algorithm', 'size_bytes']);
+      const shortEntries = [];
+      const longEntries = [];
+      for (const [key, value] of chosenEntries) {
+        const text = value === null || value === undefined ? '' : String(value);
+        const looksLong = text.length > 36 || text.includes('/') || text.includes('\\');
+        if (taggableFields.has(key) && !looksLong) {
+          shortEntries.push([key, value]);
+        } else {
+          longEntries.push([key, value]);
+        }
+      }
+      const parts = [];
+      if (shortEntries.length) {
+        parts.push(`
+          <div class="audit-tag-row">
+            ${shortEntries.map(([key, value]) => `
+              <div class="audit-tag">
+                <span class="audit-tag-label">${escapeHtml(formatAuditFieldName(key))}</span>
+                ${formatAuditValue(value)}
+              </div>
+            `).join('')}
+          </div>
+        `);
+      }
+      if (longEntries.length) {
+        parts.push(...longEntries.map(([key, value]) => `
+          <div class="audit-chip"><strong>${escapeHtml(formatAuditFieldName(key))}</strong>${formatAuditValue(value)}</div>
+        `));
+      }
+      return parts.join('');
+    }
+
+    function pickAuditPhase(entry, finalizationSeen) {
+      if (entry.event === 'finalization_begun' || entry.event === 'finalize_started' || finalizationSeen) {
+        return 'finalization';
+      }
+      if (AUDIT_PHASES[0].events.has(entry.event)) {
+        return 'initialization';
+      }
+      if (AUDIT_PHASES[1].events.has(entry.event)) {
+        return 'acquisition';
+      }
+      if (AUDIT_PHASES[2].events.has(entry.event)) {
+        return 'finalization';
+      }
+      return finalizationSeen ? 'finalization' : 'acquisition';
+    }
+
+    function renderAuditEntry(entry) {
+      return `
+        <div class="audit-item">
+          <div class="audit-head">
+            <div class="audit-event">${escapeHtml(formatEventName(entry.event))}</div>
+            <div class="audit-time">${escapeHtml(entry.ts_utc || '')}</div>
+          </div>
+          <div class="audit-fields">
+            ${summarizeAuditDetails(entry)}
+          </div>
+        </div>
+      `;
+    }
+
+    function renderAuditPhase(phase, entries) {
+      if (!entries.length) {
+        return '';
+      }
+      const lastTime = entries[entries.length - 1]?.ts_utc || '';
+      const openAttr = phase.key === 'initialization' ? ' open' : '';
+      return `
+        <details class="audit-phase"${openAttr}>
+          <summary class="audit-phase-head">
+            <div class="audit-phase-title">${escapeHtml(phase.title)}</div>
+            <div class="audit-phase-meta">${escapeHtml(lastTime)}</div>
+          </summary>
+          <div class="audit-phase-body">
+            <div class="audit-list">
+            ${entries.map(renderAuditEntry).join('')}
+            </div>
+          </div>
+        </details>
+      `;
+    }
+
+    function renderAuditTrail(content) {
+      const lines = String(content || '').split(/\r?\n/).filter(Boolean);
+      if (!lines.length) {
+        return '<div class="empty">No audit events found.</div>';
+      }
+      const grouped = {
+        initialization: [],
+        acquisition: [],
+        finalization: [],
+      };
+      let finalizationSeen = false;
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line);
+          if (entry.event === 'finalization_begun' || entry.event === 'finalize_started') {
+            finalizationSeen = true;
+          }
+          if (AUDIT_HIDDEN_EVENTS.has(entry.event)) {
+            continue;
+          }
+          const phaseKey = pickAuditPhase(entry, finalizationSeen);
+          grouped[phaseKey].push(entry);
+        } catch {
+          grouped.finalization.push({ event: 'raw_log_line', ts_utc: '', raw_line: line });
+        }
+      }
+      const items = AUDIT_PHASES.map((phase) => renderAuditPhase(phase, grouped[phase.key])).filter(Boolean);
+      if (!items.length) {
+        return '<div class="empty">No investigator-facing audit events found.</div>';
+      }
+      return `<div class="audit-list">${items.join('')}</div>`;
+    }
+
+    function showSession(index) {
+      const session = state.sessions[index];
+      if (!session) {
+        details.innerHTML = '<div class="empty">No session selected.</div>';
+        return;
+      }
+      const manifest = session.manifest || {};
+      const evidence = manifest.evidence || {};
+      const timestamps = manifest.timestamps || {};
+      const tool = manifest.tool || {};
+      const hashStatus = session.hash_ok
+        ? '<span class="status-pill status-ok">Hash OK</span>'
+        : '<span class="status-pill status-fail">Hash Failed</span>';
+      const sigStatus = session.signature_ok === true
+        ? '<span class="status-pill status-ok">Signature OK</span>'
+        : session.signature_ok === false
+          ? '<span class="status-pill status-fail">Signature Failed</span>'
+          : '<span class="status-pill">Signature Skipped</span>';
+      const auditStatus = (session.audit_hash_ok === true && session.audit_signature_ok === true)
+        ? '<span class="status-pill status-ok">Audit Verified</span>'
+        : (session.audit_hash_ok === false || session.audit_signature_ok === false)
+          ? '<span class="status-pill status-fail">Audit Failed</span>'
+          : '<span class="status-pill">Audit Unknown</span>';
+      details.innerHTML = `
+        <div class="manifest-grid">
+          <div class="manifest-card">
+            <h3>Case</h3>
+            <div class="manifest-row"><div class="manifest-key">Case ID</div><div class="manifest-value">${escapeHtml(manifest.case_id || session.case_id)}</div></div>
+            <div class="manifest-row"><div class="manifest-key">Session ID</div><div class="manifest-value">${escapeHtml(manifest.session_id || session.session_id)}</div></div>
+            <div class="manifest-row"><div class="manifest-key">Operator</div><div class="manifest-value">${escapeHtml(manifest.operator_id || '')}</div></div>
+            <div class="manifest-row"><div class="manifest-key">Target Host</div><div class="manifest-value">${escapeHtml(manifest.target_host || '')}</div></div>
+            <div class="manifest-row"><div class="manifest-key">Device ID</div><div class="manifest-value">${escapeHtml(manifest.device_id || '')}</div></div>
+          </div>
+          <div class="manifest-card">
+            <h3>Evidence</h3>
+            <div class="manifest-row"><div class="manifest-key">Tool</div><div class="manifest-value">${escapeHtml((tool.name || '') + (tool.version ? ' ' + tool.version : ''))}</div></div>
+            <div class="manifest-row"><div class="manifest-key">File</div><div class="manifest-value">${escapeHtml(evidence.filename || '')}</div></div>
+            <div class="manifest-row"><div class="manifest-key">Size</div><div class="manifest-value">${Number(evidence.size_bytes ?? session.size_bytes).toLocaleString()} bytes</div></div>
+            <div class="manifest-row"><div class="manifest-key">Algorithm</div><div class="manifest-value">${escapeHtml(evidence.hash_algorithm || 'SHA-512')}</div></div>
+            <div class="manifest-row"><div class="manifest-key">Status</div><div class="manifest-value">${hashStatus} ${sigStatus} ${auditStatus}</div></div>
+          </div>
+          <div class="manifest-card">
+            <h3>Timestamps</h3>
+            <div class="manifest-row"><div class="manifest-key">Session Start</div><div class="manifest-value">${escapeHtml(formatUtcTimestamp(timestamps.session_start_utc || ''))}</div></div>
+            <div class="manifest-row"><div class="manifest-key">Acquisition End</div><div class="manifest-value">${escapeHtml(formatUtcTimestamp(timestamps.acquisition_end_utc || ''))}</div></div>
+            <div class="manifest-row"><div class="manifest-key">Archive Complete</div><div class="manifest-value">${escapeHtml(formatUtcTimestamp(timestamps.archive_complete_utc || ''))}</div></div>
+          </div>
+          <div class="manifest-card">
+            <h3>Notes</h3>
+            <div class="manifest-value">${escapeHtml(manifest.notes || session.notes || '') || '<span class="empty">No notes.</span>'}</div>
+          </div>
+        </div>
+        <div class="manifest-card" style="margin-top:12px;">
+          <h3>SHA-512</h3>
+          <div class="manifest-row">
+            <div class="manifest-key">Manifest</div>
+            <div class="hash-block">${escapeHtml(session.manifest_sha512)}</div>
+          </div>
+          <div class="manifest-row">
+            <div class="manifest-key">Actual</div>
+            <div class="hash-block">${escapeHtml(session.actual_sha512)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    async function refreshStatus() {
+      const data = await api('/api/evidence-browser/status');
+      setStatus(data.evidence_unlocked, data.evidence_unlocked ? 'Evidence Unlocked' : 'Locked');
+      return data;
+    }
+
+    async function refreshCases() {
+      try {
+        const data = await api('/api/evidence-browser/cases');
+        state.cases = data.cases;
+        if (!state.cases.some((item) => item.case_id === state.selectedCase)) {
+          state.selectedCase = null;
+        }
+        renderCases();
+        setMessage(`Loaded ${state.cases.length} case(s).`);
+      } catch (error) {
+        state.cases = [];
+        renderCases();
+        state.sessions = [];
+        renderResults();
+        setMessage(error.message);
+      }
+    }
+
+    async function loadCase(caseId) {
+      try {
+        setMessage(`Verifying case ${caseId}...`);
+        const data = await api(`/api/evidence-browser/case/${encodeURIComponent(caseId)}`);
+        activeCaseId = caseId;
+        state.selectedCase = caseId;
+        state.sessions = data.sessions;
+        state.files = data.files || [];
+        state.logs = data.logs || [];
+        state.currentDir = '';
+        renderCases();
+        renderResults();
+        caseExtras.innerHTML = `
+          <h2>Case Files</h2>
+          <div id="fileExplorer">${renderExplorer(caseId)}</div>
+          <h2 style="margin-top:20px;">Session Audit</h2>
+          ${renderLogs()}
+        `;
+        setMessage(`Verified ${data.sessions.length} session(s) in ${caseId}.`);
+      } catch (error) {
+        setMessage(error.message);
+      }
+    }
+
+    caseExtras.onclick = (event) => {
+      const link = event.target.closest('[data-dir]');
+      if (!link || !activeCaseId) {
+        return;
+      }
+      event.preventDefault();
+      state.currentDir = link.dataset.dir || '';
+      const explorer = document.getElementById('fileExplorer');
+      if (explorer) {
+        explorer.innerHTML = renderExplorer(activeCaseId);
+      }
+    };
+
+    document.getElementById('unlockBtn').onclick = async () => {
+      try {
+        setMessage('Unlocking evidence...');
+        await api('/api/evidence-browser/unlock', {
+          method: 'POST',
+          body: JSON.stringify({ password: password.value })
+        });
+        password.value = '';
+        await refreshStatus();
+        await refreshCases();
+      } catch (error) {
+        setMessage(error.message);
+      }
+    };
+
+    document.getElementById('lockBtn').onclick = async () => {
+      try {
+        await api('/api/evidence-browser/lock', { method: 'POST', body: '{}' });
+        state.cases = [];
+        state.sessions = [];
+        state.files = [];
+        state.logs = [];
+        state.currentDir = '';
+        activeCaseId = null;
+        state.selectedCase = null;
+        renderCases();
+        renderResults();
+        await refreshStatus();
+        setMessage('Evidence locked.');
+      } catch (error) {
+        setMessage(error.message);
+      }
+    };
+
+    document.getElementById('refreshBtn').onclick = async () => {
+      await refreshStatus();
+      await refreshCases();
+    };
+
+    (async () => {
+      try {
+        await refreshStatus();
+        await refreshCases();
+      } catch (error) {
+        setMessage(error.message);
+      }
+    })();
+  </script>
+</body>
+</html>

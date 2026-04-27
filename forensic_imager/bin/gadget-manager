@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CONFIG="/opt/forensic-imager/config/device.json"
+ACTION="${1:-}"
+
+require_root() {
+  if [[ "${EUID}" -ne 0 ]]; then
+    echo "Run as root." >&2
+    exit 1
+  fi
+}
+
+cfg() {
+  jq -r "$1" "${CONFIG}"
+}
+
+GADGET_DIR="/sys/kernel/config/usb_gadget/forensic_imager"
+CONFIG_DIR="${GADGET_DIR}/configs/c.1"
+TOOLS_FILE="$(cfg '.usb_tools_file')"
+STAGE_FILE="$(cfg '.usb_stage_file')"
+MANUFACTURER="$(cfg '.usb_manufacturer')"
+PRODUCT="$(cfg '.usb_product')"
+SERIAL="$(cfg '.usb_serial')"
+CONFIG_NAME="$(cfg '.usb_config_name')"
+VENDOR_ID="$(cfg '.usb_vendor_id')"
+PRODUCT_ID="$(cfg '.usb_product_id')"
+NCM_ENABLED="$(cfg '.usb_ncm_enabled')"
+NCM_IFACE="$(cfg '.usb_ncm_iface')"
+NCM_DEV_ADDR="$(cfg '.usb_ncm_dev_addr')"
+NCM_HOST_ADDR="$(cfg '.usb_ncm_host_addr')"
+NCM_DEVICE_CIDR="$(cfg '.usb_ncm_device_cidr')"
+
+mount_configfs() {
+  mkdir -p /sys/kernel/config
+  if ! mountpoint -q /sys/kernel/config; then
+    mount -t configfs none /sys/kernel/config
+  fi
+}
+
+load_modules() {
+  modprobe libcomposite
+}
+
+ensure_gadget() {
+  mkdir -p "${GADGET_DIR}"
+  echo "${VENDOR_ID}" > "${GADGET_DIR}/idVendor"
+  echo "${PRODUCT_ID}" > "${GADGET_DIR}/idProduct"
+  mkdir -p "${GADGET_DIR}/strings/0x409"
+  echo "${SERIAL}" > "${GADGET_DIR}/strings/0x409/serialnumber"
+  echo "${MANUFACTURER}" > "${GADGET_DIR}/strings/0x409/manufacturer"
+  echo "${PRODUCT}" > "${GADGET_DIR}/strings/0x409/product"
+
+  mkdir -p "${CONFIG_DIR}/strings/0x409"
+  echo "${CONFIG_NAME}" > "${CONFIG_DIR}/strings/0x409/configuration"
+  echo 250 > "${CONFIG_DIR}/MaxPower"
+
+  mkdir -p "${GADGET_DIR}/functions/mass_storage.0/lun.0"
+  echo 1 > "${GADGET_DIR}/functions/mass_storage.0/stall"
+  echo 1 > "${GADGET_DIR}/functions/mass_storage.0/lun.0/removable"
+  echo 0 > "${GADGET_DIR}/functions/mass_storage.0/lun.0/cdrom"
+  echo 1 > "${GADGET_DIR}/functions/mass_storage.0/lun.0/ro"
+  echo "${TOOLS_FILE}" > "${GADGET_DIR}/functions/mass_storage.0/lun.0/file"
+
+  mkdir -p "${GADGET_DIR}/functions/mass_storage.0/lun.1"
+  echo 1 > "${GADGET_DIR}/functions/mass_storage.0/lun.1/removable"
+  echo 0 > "${GADGET_DIR}/functions/mass_storage.0/lun.1/cdrom"
+  echo 0 > "${GADGET_DIR}/functions/mass_storage.0/lun.1/ro"
+  ln -sfn "${GADGET_DIR}/functions/mass_storage.0" "${CONFIG_DIR}/mass_storage.0"
+
+  if [[ "${NCM_ENABLED}" == "true" ]]; then
+    mkdir -p "${GADGET_DIR}/functions/ncm.usb0"
+    echo "${NCM_DEV_ADDR}" > "${GADGET_DIR}/functions/ncm.usb0/dev_addr"
+    echo "${NCM_HOST_ADDR}" > "${GADGET_DIR}/functions/ncm.usb0/host_addr"
+    ln -sfn "${GADGET_DIR}/functions/ncm.usb0" "${CONFIG_DIR}/ncm.usb0"
+  fi
+}
+
+bind_gadget() {
+  if [[ -z "$(cat "${GADGET_DIR}/UDC" 2>/dev/null || true)" ]]; then
+    ls /sys/class/udc | head -n 1 > "${GADGET_DIR}/UDC"
+  fi
+}
+
+configure_ncm_iface() {
+  if [[ "${NCM_ENABLED}" != "true" ]]; then
+    return 0
+  fi
+
+  for _ in {1..20}; do
+    if ip link show "${NCM_IFACE}" >/dev/null 2>&1; then
+      ip link set "${NCM_IFACE}" up || true
+      ip addr replace "${NCM_DEVICE_CIDR}" dev "${NCM_IFACE}" || true
+      return 0
+    fi
+    sleep 1
+  done
+}
+
+refresh_tools_volume() {
+  mkdir -p /mnt/forensics-tools
+  umount /mnt/forensics-tools >/dev/null 2>&1 || true
+  mount "${TOOLS_FILE}" /mnt/forensics-tools
+  python3 - <<'PY'
+import sys
+sys.path.insert(0, "/opt/forensic-imager/app")
+import agent
+agent.prepare_tools_volume(mounted=True)
+PY
+  sync
+  umount /mnt/forensics-tools
+}
+
+unbind_gadget() {
+  if [[ -e "${GADGET_DIR}/UDC" ]]; then
+    echo "" > "${GADGET_DIR}/UDC" 2>/dev/null || true
+  fi
+}
+
+attach_stage() {
+  local lun_file="${GADGET_DIR}/functions/mass_storage.0/lun.1/file"
+  local current=""
+  current="$(cat "${lun_file}" 2>/dev/null || true)"
+  if [[ "${current}" == "${STAGE_FILE}" ]]; then
+    return 0
+  fi
+  echo "${STAGE_FILE}" > "${lun_file}"
+}
+
+detach_stage() {
+  local lun_dir="${GADGET_DIR}/functions/mass_storage.0/lun.1"
+  local lun_file="${lun_dir}/file"
+  local current=""
+
+  if [[ ! -e "${lun_file}" ]]; then
+    return 0
+  fi
+
+  current="$(cat "${lun_file}" 2>/dev/null || true)"
+  if [[ -z "${current}" ]]; then
+    return 0
+  fi
+
+  sync
+  for _ in {1..10}; do
+    if echo "" > "${lun_file}" 2>/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo 1 > "${lun_dir}/forced_eject" 2>/dev/null || true
+  sleep 1
+  if echo "" > "${lun_file}" 2>/dev/null; then
+    return 0
+  fi
+
+  unbind_gadget
+  sleep 1
+  echo "" > "${lun_file}"
+  bind_gadget
+}
+
+cleanup_gadget() {
+  rm -f "${CONFIG_DIR}/mass_storage.0" "${CONFIG_DIR}/ncm.usb0" "${CONFIG_DIR}/rndis.usb0" || true
+  rmdir "${GADGET_DIR}/functions/mass_storage.0/lun.0" 2>/dev/null || true
+  rmdir "${GADGET_DIR}/functions/mass_storage.0/lun.1" 2>/dev/null || true
+  rmdir "${GADGET_DIR}/functions/mass_storage.0" 2>/dev/null || true
+  rmdir "${GADGET_DIR}/functions/ncm.usb0" 2>/dev/null || true
+  rmdir "${GADGET_DIR}/functions/rndis.usb0/os_desc/interface.rndis" 2>/dev/null || true
+  rmdir "${GADGET_DIR}/functions/rndis.usb0/os_desc" 2>/dev/null || true
+  rmdir "${GADGET_DIR}/functions/rndis.usb0" 2>/dev/null || true
+  rmdir "${CONFIG_DIR}/strings/0x409" 2>/dev/null || true
+  rmdir "${CONFIG_DIR}" 2>/dev/null || true
+  rmdir "${GADGET_DIR}/strings/0x409" 2>/dev/null || true
+  rmdir "${GADGET_DIR}" 2>/dev/null || true
+}
+
+require_root
+
+case "${ACTION}" in
+  start)
+    mount_configfs
+    load_modules
+    unbind_gadget
+    cleanup_gadget
+    refresh_tools_volume
+    ensure_gadget
+    bind_gadget
+    configure_ncm_iface
+    sleep 1
+    ;;
+  stop)
+    unbind_gadget
+    cleanup_gadget
+    ;;
+  reset)
+    unbind_gadget
+    sleep 1
+    refresh_tools_volume
+    bind_gadget
+    configure_ncm_iface
+    ;;
+  attach-stage)
+    attach_stage
+    ;;
+  detach-stage)
+    detach_stage
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|reset|attach-stage|detach-stage}" >&2
+    exit 1
+    ;;
+esac
