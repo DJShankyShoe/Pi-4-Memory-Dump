@@ -47,12 +47,6 @@ This project uses USB gadget mode to present:
 - External binaries such as `winpmem.exe` should be supplied separately during deployment.
 - Some project files still reflect active development rather than polished release packaging.
 
-## Suggested GitHub Layout
-
-- keep `forensic_imager/` and `scripts/` as the main tracked source
-- keep operational docs in the repo root
-- add your own `LICENSE` and issue templates if you plan to publish publicly
-
 ## Quick Start
 
 1. Provision the Pi and SSD using the scripts in `scripts/`.

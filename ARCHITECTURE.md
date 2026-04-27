@@ -253,13 +253,3 @@ It remains useful for a trusted analysis machine that can:
 
 The Pi-served evidence browser website is now the preferred cross-platform path for Windows hosts.
 It provides automatic verification plus a read-only case browser for archived files and logs.
-
-## Current Constraints
-
-- This build uses mass storage for tools/staging and `CDC-NCM` for finalization control.
-- The LUKS password is not written to `F_DUMP`; it is sent over `CDC-NCM` inside an RSA-OAEP encrypted request envelope with a per-request random salt.
-- `F_TOOLS` is host-visible but exported read-only.
-- `F_DUMP` is host-visible, writable, and intentionally untrusted.
-- On boot, the Pi treats any stale `AUTHENTICATED`, `READY_FOR_ACQUISITION`, or `FINALIZING` session as interrupted, clears `F_DUMP`, records an audit event, and returns to clean idle.
-- If interruption happened after partial archival began, the Pi records a pending evidence cleanup marker and removes that partial case/session directory the next time the evidence volume is unlocked.
-- The Pi hardware has shown undervoltage events during development; stable power still matters.

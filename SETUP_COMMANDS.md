@@ -244,13 +244,3 @@ chmod +x ./scripts/inspect_case.sh
 sudo env LUKS_PASSWORD=forensic ./scripts/inspect_case.sh CASE-001
 ```
 
-## Known Constraints
-
-- This build uses two mass-storage LUNs and `CDC-NCM` for control and finalization.
-- The password and case details are sent over `CDC-NCM`; the Windows host could still capture user input before encryption if it is compromised.
-- `F_TOOLS` is exported read-only.
-- `F_TOOLS` is rebuilt from the Pi-side canonical copy when the gadget starts or resets.
-- `F_DUMP` is disposable and untrusted scratch space.
-- A reboot now discards any stale in-progress session, clears `F_DUMP`, writes an audit record, and returns the Pi to `LOCKED_IDLE`.
-- If a partial evidence directory exists from an interrupted archival, it is deleted on the next successful evidence unlock.
-- The Pi has shown undervoltage events during development; power stability still matters.
